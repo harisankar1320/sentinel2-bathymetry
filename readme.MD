@@ -8,8 +8,8 @@ The project compares traditional spectral ratio methods against machine learning
 
 ## Study Area
 
-**South coast of Crete, Greece** - Sentinel-2 tile T34SGE  
-Coordinate system: EPSG:32634, Resolution: 10m, Period: 2024–2025
+**South coast of Crete, Greece** — Sentinel-2 tile T34SGE  
+Coordinate system: EPSG:32634 | Resolution: 10m | Period: 2024–2025
 
 ![True Color RGB — March 2024](docs/images/crete_rgb_march.png)
 *True color RGB composite — Sentinel-2, March 2024. Snow visible on the White Mountains (Lefka Ori). Clear Mediterranean water ideal for optical bathymetry.*
@@ -90,14 +90,14 @@ Valid ratio range: −0.2 to +0.4. Units: mg/m³.
 
 ---
 
-## Bathymetry - Methods Compared
+## Bathymetry — Methods Compared
 
 Reference depth data: **EMODnet DTM** (~115m resolution), reprojected to match Sentinel-2 grid (EPSG:32634, 10m).
 
 Shallow water training pixels: **94,448,695** (across 54 scenes, 0–30m depth)  
 Train/test split: **80/20**, stratified by scene
 
-### Baseline - Stumpf Band Ratio (2003)
+### Baseline — Stumpf Band Ratio (2003)
 
 $$ratio = \frac{\ln(Blue)}{\ln(Green)}$$
 
@@ -119,91 +119,73 @@ Activation: ReLU | Scaled inputs (StandardScaler)
 
 ## Results
 
-![Bathymetry Comparison](docs/images/bathymetry_comparison.png)
-*Predicted vs actual depth scatter plots. Red dashed line = perfect prediction. Each point = one test pixel.*
+Held-out blocks, single split, single seed, depth range 0–15 m.
 
-| Model | R² | RMSE (m) | MAE (m) |
-|---|---|---|---|
-| Stumpf Band Ratio (baseline) | 0.102 | 7.10 | 5.87 |
-| Random Forest | 0.215 | 6.63 | 5.15 |
-| **MLP Neural Network** | **0.311** | **6.22** | **4.82** |
+| Model | Inputs | R² | RMSE (m) | MAE (m) |
+|---|---|---|---|---|
+| Stumpf band ratio | ln(B02)/ln(B03) | 0.156 | 3.68 | 3.02 |
+| Random Forest | B02, B03, B04 | 0.400 | 3.10 | 2.34 |
+| MLP | B02, B03, B04 | 0.463 | 2.94 | 2.20 |
 
-**MLP improved R² by 21% and reduced RMSE by 0.88m over the traditional baseline.**
+![Predicted vs reference depth](docs/images/bathymetry_comparison.png)
 
-### Feature Importance (Random Forest)
+### Error by depth bin
 
-| Band | Importance |
+Bias is prediction minus reference, so positive values mean over-prediction.
+
+| Depth | Test pixels | RF bias | RF MAE | MLP bias | MLP MAE | MLP median abs. error |
+|---|---|---|---|---|---|---|
+| 0–3 m | 196,087 | +3.28 | 3.41 | +3.29 | 3.37 | 1.70 |
+| 3–6 m | 429,360 | +1.72 | 2.25 | +1.70 | 2.16 | 1.41 |
+| 6–9 m | 394,816 | +0.90 | 1.93 | +0.91 | 1.82 | 1.59 |
+| 9–12 m | 448,196 | −0.57 | 1.54 | −0.52 | 1.28 | 0.96 |
+| 12–15 m | 529,361 | −2.96 | 2.99 | −2.86 | 2.87 | 2.71 |
+
+Errors are smallest between about 6 and 12 m. The sign change of the bias is the usual regression towards the mean of a noisy predictor, combined with signal saturation: beyond about 12 m the predictions flatten at 11–12 m. In the first 3 m the mean error (+3.3 m) is much larger than the median (1.7 m), which points to a tail of shallow pixels that look like deep water (dark seabed such as seagrass or rock).
+
+### Depth maps for one scene
+
+Sentinel-2 scene of 8 July 2024, shown as a 10 km × 10 km crop around the area with the most 0–15 m pixels. First the scene in true colour (from the corrected, glint-reduced bands; white pixels are masked land or cloud), then the EMODnet reference depth, the MLP prediction and the difference between them.
+
+![True colour scene](docs/images/scene_rgb.png)
+
+![Reference depth, predicted depth and error](docs/images/bathymetry_map.png)
+
+In the two depth maps yellow is shallow and purple is deep, with the same colour scale. In the error map red means the model predicts too deep and blue too shallow. The map is made from a single scene, so it is noisy at pixel level, and it covers all blocks, including the ones used for training. The notebook has a switch (`ONLY_TEST_BLOCKS`) to show only held-out blocks. Only pixels inside the 0–15 m reference mask are predicted.
+
+### Signal versus depth
+
+For the per-pixel median over 54 scenes, ln(B03) decreases with depth (Spearman ρ = −0.61 over 1.97 million pixels) from about −2.8 at 0–2 m to about −3.8 at 18–20 m, and stays flat beyond that. This matches the expected limit of optical penetration in clear water, and the models gain nothing from pixels deeper than about 15–20 m.
+
+### Feature importance (Random Forest)
+
+B03 (green) 0.47, B04 (red) 0.28, B02 (blue) 0.25.
+
+## Limitations
+
+- **Reference resolution.** Labels come from a grid of about 116 m, applied to 10 m pixels. Within one EMODnet cell, depth is constant by construction, so real small-scale seabed relief cannot be learned or evaluated.
+- **Reference quality.** Where EMODnet is filled from GEBCO the labels are coarser still. This has not been mapped.
+- **No in-situ or lidar validation.** All scores are agreement with another gridded product, not with surveyed depth.
+- **Single site, one split, one seed.** No confidence intervals and no transfer test to other areas or years.
+- **Depth range.** Only 0–15 m is modelled. Predictions flatten beyond about 12 m, and a separate deep-water mask would be needed for use outside that range.
+- **Substrate.** Dark shallow bottoms are confused with deep water, which causes over-prediction at 0–3 m.
+- **Single-scene pixels.** The models use individual scene pixels pooled over 54 scenes, with no temporal compositing. A per-pixel median is expected to reduce wave, glint and turbidity noise.
+- **Reflectance correction.** The −0.05 correction is applied at load time (see Preprocessing), not in the saved band files.
+- **Water-quality indices.** NDWI, turbidity and chlorophyll-a depend on the same reflectances and are being recomputed. The turbidity and chlorophyll coefficients also need checking against the original papers.
+
+## Repository
+
+| File | Purpose |
 |---|---|
-| B02 Blue | 0.277 |
-| B03 Green | 0.415 |
-| B04 Red | 0.308 |
+| `01_data_download.ipynb` | Download Sentinel-2 scenes |
+| `02_preprocessing.ipynb` | Reflectance, masks, glint correction, band stacks |
+| `bathymetry_reference_prepro.ipynb` | Clip EMODnet tile, reproject to the Sentinel-2 grid, write block IDs |
+| `bathymetry_baseline_stumpf_LR.ipynb` | Spatial split, Stumpf baseline, Random Forest, MLP, evaluation, depth maps |
+| `docs/images/` | `bathymetry_comparison.png`, `bathymetry_map.png`, `scene_rgb.png` |
 
-Green band shows highest importance — consistent with optical depth theory (green light penetrates deepest in clear water).
+## Next steps
 
-### Discussion
-
-Low overall R² values are attributed to:
-
-- **Resolution mismatch** — EMODnet reference at 115m vs Sentinel-2 at 10m creates label noise. One EMODnet pixel covers ~121 Sentinel-2 pixels, all assigned the same depth value.
-- **Optical complexity** — coastal Mediterranean water exhibits variable turbidity and bottom type that reduces band ratio reliability.
-- **Depth range** — the 0–30m range includes transitional zones where optical properties change non-linearly.
-
-Higher-resolution reference data (airborne LiDAR, multibeam sonar) would be expected to significantly improve model accuracy.
-
----
-
-## Shallow Water Coverage
-
-![Shallow Water Coverage](docs/images/shallow_water.png)
-*EMODnet depth < 30m around Crete south coast. Coastal shelves and island shallow zones clearly visible.*
-
----
-
-## Setup
-
-```bash
-git clone https://github.com/harisankar1320/sentinel2-water-quality-bathymetry.git
-cd sentinel2-water-quality-bathymetry
-
-python -m venv venv
-venv\Scripts\activate          # Windows
-source venv/bin/activate       # Mac/Linux
-
-pip install -r requirements.txt
-```
-
-### Data Requirements
-
-- Sentinel-2 L2A scenes from [Copernicus Data Space](https://dataspace.copernicus.eu/) — tile T34SGE
-- EMODnet bathymetry DTM from [EMODnet Bathymetry Portal](https://emodnet.ec.europa.eu/en/bathymetry)
-
----
-
-## Dependencies
-
-```
-numpy
-rasterio
-scikit-learn
-matplotlib
-requests
-python-dotenv
-```
-
----
-
-## References
-
-- Stumpf, R.P. et al. (2003). *Determination of water depth with high-resolution satellite imagery over variable bottom types*. Limnology and Oceanography.
-- Dogliotti, A.I. et al. (2015). *A single algorithm to retrieve turbidity from remotely-sensed data in all coastal and estuarine waters*. Remote Sensing of Environment.
-- O'Reilly, J.E. et al. (1998). *Ocean color chlorophyll algorithms for SeaWiFS*. Journal of Geophysical Research.
-- EMODnet Bathymetry Consortium (2022). *EMODnet Digital Bathymetry (DTM)*. European Marine Observation and Data Network.
-
----
-
-## Author
-
-**Harisankar Harikumar**  
-MSc Remote Sensing and Geoinformatics  
-Karlsruhe Institute of Technology (KIT)  
-[GitHub](https://github.com/harisankar1320)
+- Per-pixel median composite over scenes, and log-ratio features for the Random Forest and MLP.
+- Validation against ICESat-2 photon bathymetry (ATL24) instead of a gridded product.
+- Apply the reflectance offset in the preprocessing notebook and recompute the water-quality indices.
+- Spatial cross-validation (mean ± std over folds) instead of a single split.
