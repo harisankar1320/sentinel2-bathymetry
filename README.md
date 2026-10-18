@@ -11,7 +11,7 @@ The project compares traditional spectral ratio methods against machine learning
 **South coast of Crete, Greece** — Sentinel-2 tile T34SGE  
 Coordinate system: EPSG:32634 | Resolution: 10m | Period: 2024–2025
 
-![True Color RGB — March 2024](docs/images/crete_rgb_march.png)
+![True colour scene](docs/images/scene_rgb.png)
 *True color RGB composite — Sentinel-2, March 2024. Snow visible on the White Mountains (Lefka Ori). Clear Mediterranean water ideal for optical bathymetry.*
 
 ---
