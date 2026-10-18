@@ -61,35 +61,6 @@ Save: bands.tif + indices.tif + RGB preview
 
 **54 scenes processed** | ~79% valid water pixels per scene after masking
 
----
-
-## Water Quality Indices
-
-### NDWI — Normalised Difference Water Index
-
-$$NDWI = \frac{Green - NIR}{Green + NIR}$$
-
-Separates water from non-water surfaces. Range: −1 to +1.
-
-### Turbidity — Dogliotti et al. (2015)
-
-$$T = \frac{1.73 \cdot R_{red}}{1 - R_{red}/0.17}$$
-
-Estimates suspended sediment concentration. Valid for $R_{red} < 0.17$.  
-Units: NTU. Capped at 100 NTU for coastal Mediterranean waters.
-
-### Chlorophyll-a — OC2 Algorithm (O'Reilly et al.)
-
-$$\log_{10}(Chl_a) = 0.2424 - 2.7423 \cdot r + 1.8017 \cdot r^2$$
-
-where $r = \log_{10}(R_{blue}/R_{green})$
-
-Valid ratio range: −0.2 to +0.4. Units: mg/m³.
-
-
-
----
-
 ## Bathymetry — Methods Compared
 
 Reference depth data: **EMODnet DTM** (~115m resolution), reprojected to match Sentinel-2 grid (EPSG:32634, 10m).
