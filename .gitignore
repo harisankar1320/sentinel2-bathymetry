@@ -2,7 +2,6 @@ water_venv/
 __pycache__/
 *.pyc
 .pytest_cache/
-data/
 *.tif
 *.zip
 *.SAFE

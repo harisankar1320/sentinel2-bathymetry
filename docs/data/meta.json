@@ -1,0 +1,106 @@
+{
+ "layers": [
+  {
+   "id": "mlp",
+   "file": "mlp.webp",
+   "range": [
+    0,
+    15
+   ],
+   "ramp": [
+    "#d6ecfa",
+    "#9ec5f4",
+    "#5598e7",
+    "#2a6bc0",
+    "#1a4a8a",
+    "#0e2c55"
+   ],
+   "kind": "sequential",
+   "label": "Predicted depth",
+   "title": "Predicted depth (neural network)",
+   "sub": "Scene of 8 July 2024"
+  },
+  {
+   "id": "ref",
+   "file": "ref.webp",
+   "range": [
+    0,
+    15
+   ],
+   "ramp": [
+    "#d6ecfa",
+    "#9ec5f4",
+    "#5598e7",
+    "#2a6bc0",
+    "#1a4a8a",
+    "#0e2c55"
+   ],
+   "kind": "sequential",
+   "label": "EMODnet depth",
+   "title": "Reference depth (EMODnet DTM 2024)",
+   "sub": "Cells of about 115 m"
+  },
+  {
+   "id": "err",
+   "file": "err.webp",
+   "range": [
+    -5,
+    5
+   ],
+   "ramp": [
+    "#9ec5f4",
+    "#5598e7",
+    "#2a5f9e",
+    "#3b3f40",
+    "#9e3a3a",
+    "#e34948",
+    "#f4a3a3"
+   ],
+   "kind": "diverging",
+   "label": "Error",
+   "title": "Predicted minus reference",
+   "sub": "All blocks"
+  },
+  {
+   "id": "err_test",
+   "file": "err_test.webp",
+   "range": [
+    -5,
+    5
+   ],
+   "ramp": [
+    "#9ec5f4",
+    "#5598e7",
+    "#2a5f9e",
+    "#3b3f40",
+    "#9e3a3a",
+    "#e34948",
+    "#f4a3a3"
+   ],
+   "kind": "diverging",
+   "label": "Error, test blocks",
+   "title": "Predicted minus reference",
+   "sub": "Held-out blocks only"
+  }
+ ],
+ "bounds": [
+  [
+   35.18379105871693,
+   23.235039361255378
+  ],
+  [
+   35.91824403836317,
+   24.183484795864818
+  ]
+ ],
+ "focus": [
+  [
+   35.489998385604295,
+   23.79683512422867
+  ],
+  [
+   35.58266154071188,
+   23.91020147217297
+  ]
+ ]
+}
