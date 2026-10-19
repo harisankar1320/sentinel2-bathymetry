@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crete Bathymetry from Sentinel-2</title>
+  <meta name="description" content="Water depth from 54 Sentinel-2 scenes of western Crete: Stumpf band ratio, random forest and neural network compared on held-out 500 m blocks against EMODnet.">
+  <meta name="author" content="Harisankar Harikumar">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="masthead">
+    <div class="wrap masthead__row">
+      <span class="masthead__name">Harisankar Harikumar</span>
+      <nav aria-label="Elsewhere">
+        <a href="https://github.com/harisankar1320/sentinel2-water-quality-bathymetry">Code on GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="intro wrap">
+      <h1>Water depth from Sentinel-2 along the coast of Crete</h1>
+      <p class="lead">
+        In clear water, sunlight reaches the sea floor and comes back, and the deeper the water, the
+        less of it returns. I used this to estimate depth from 54 Sentinel-2 scenes of western
+        Crete and compared three models against the EMODnet depth grid, testing each one on parts of
+        the coast it never saw during training.
+      </p>
+      <div class="stats" aria-label="Key numbers">
+        <div><b>54</b><span>Sentinel-2 scenes, 2024–2025</span></div>
+        <div><b>0–15 m</b><span>depth range modelled</span></div>
+        <div><b>2.9 m</b><span>RMSE of the best model (MLP)</span></div>
+        <div><b>189</b><span>held-out 500 m test blocks</span></div>
+      </div>
+    </section>
+
+    <section class="viewer" aria-label="Map viewer">
+      <div class="wrap">
+        <div class="controls" role="group" aria-label="Map options">
+          <fieldset class="seg" id="layer-switch" hidden>
+            <legend class="visually-hidden">Layer</legend>
+          </fieldset>
+          <label class="opacity" id="opacity-box" hidden>Opacity <input type="range" id="opacity" min="0" max="100" value="85"></label>
+        </div>
+      </div>
+      <div class="wrap wrap--wide">
+        <div class="frame">
+          <div id="map" class="map" aria-label="Satellite map of western Crete with the selected depth layer"></div>
+          <div class="legend" id="legend" aria-live="polite"></div>
+          <div class="empty" id="empty" hidden></div>
+        </div>
+      </div>
+      <div class="wrap">
+        <p class="note" id="map-note">
+          Depth for every 0–15 m pixel of the scene of 8 July 2024, predicted by the neural network.
+          “Error” is predicted minus EMODnet depth: red means the model predicts too deep, blue too
+          shallow. “Error, test blocks” shows only the blocks the model never saw in training.
+        </p>
+      </div>
+    </section>
+
+    <section class="wrap prose" aria-labelledby="idea-h">
+      <h2 id="idea-h">The idea</h2>
+      <p>
+        Water absorbs light, and it absorbs green and red faster than blue. Over a bright sandy
+        floor, the deeper the water, the darker the pixel and the more blue it looks compared with
+        green. Lyzenga (1978) turned this into a depth model, and Stumpf et al. (2003) simplified it to
+        a single ratio of the logarithms of blue and green reflectance, which changes roughly
+        linearly with depth and depends less on how bright the sea floor is.
+      </p>
+      <p>
+        The signal fades with depth. Below a certain depth no light from the floor reaches the
+        sensor, and the pixel looks like open sea. The chart shows where that happens here.
+      </p>
+    </section>
+    <section class="wrap charts" id="signal" aria-label="Green reflectance against depth"></section>
+    <div class="wrap">
+      <p class="note">
+        Per-pixel median of ln(green reflectance) over all 54 scenes, averaged per 2 m of EMODnet depth
+        (1.97 million pixels, Spearman ρ = −0.61). The signal flattens below about 18 m, so only
+        0–15 m is modelled.
+      </p>
+    </div>
+
+    <section class="wrap prose method" aria-labelledby="method-h">
+      <h2 id="method-h">Data and method</h2>
+      <dl class="facts">
+        <div><dt>Imagery</dt><dd>Sentinel-2 Level-2A (surface reflectance), tile T34SGE, 54 scenes from February 2024 to November 2025, bands B02 (blue), B03 (green), B04 (red) and B08 (near infrared) at 10 m.</dd></div>
+        <div><dt>Reference depth</dt><dd>EMODnet Digital Bathymetry DTM 2024 (EMODnet Bathymetry Consortium, 2024), cells of about 115 m, put on the 10 m Sentinel-2 grid with nearest-neighbour resampling. Pixels 0–15 m deep are used.</dd></div>
+        <div><dt>1. Water mask</dt><dd>Only pixels the Sentinel-2 scene classification marks as water (class 6).</dd></div>
+        <div><dt>2. Reflectance</dt><dd>
+          Digital numbers to reflectance with the offset of processing baseline 04.00 (ESA, 2022):
+          <p class="formula">ρ = (DN − 1000) / 10000</p>
+          My first preprocessing missed the offset, so it is corrected when the bands are loaded.
+        </dd></div>
+        <div><dt>3. Sun glint</dt><dd>Half of the near-infrared reflectance is subtracted from the visible bands. This is a fixed-factor version of NIR-based deglinting (Hedley et al., 2005); the full method fits the factor per scene.</dd></div>
+        <div><dt>4. Spatial split</dt><dd>The coast is cut into blocks of 5 × 5 EMODnet cells (about 500 m). 80 % of the blocks are used for training and 20 % for testing, so test pixels are never next to training pixels (Roberts et al., 2017). 756 training blocks, 189 test blocks; 1 million training and 2 million test pixels drawn from all scenes.</dd></div>
+        <div><dt>5. Stumpf band ratio</dt><dd>
+          Linear fit of depth to the log ratio (Stumpf et al., 2003), here without the scaling constant n of the original:
+          <p class="formula">depth = m₀ + m₁ · ln(B02) / ln(B03)</p>
+        </dd></div>
+        <div><dt>6. Random forest</dt><dd>100 trees on B02, B03 and B04 (Breiman, 2001), the approach Sagawa et al. (2019) used for multi-temporal satellite bathymetry.</dd></div>
+        <div><dt>7. Neural network</dt><dd>Multilayer perceptron 3 → 64 → 32 → 16 → 1 with ReLU, standardised inputs and early stopping (scikit-learn; Pedregosa et al., 2011).</dd></div>
+        <div><dt>Tools</dt><dd>Python with rasterio, NumPy and scikit-learn. This page uses Leaflet.</dd></div>
+      </dl>
+    </section>
+
+    <section class="wrap prose" aria-labelledby="results-h">
+      <h2 id="results-h">Results</h2>
+      <p>
+        All three models are scored on the same 2 million pixels from the held-out blocks. The
+        neural network is best, the band ratio worst. The random forest gives most weight to the
+        green band (0.47), then red (0.28) and blue (0.25).
+      </p>
+      <div class="tablewrap">
+        <table class="results">
+          <caption>Held-out blocks, depth 0–15 m</caption>
+          <thead><tr><th scope="col">Model</th><th scope="col">Inputs</th><th scope="col">R²</th><th scope="col">RMSE</th><th scope="col">MAE</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Stumpf band ratio</th><td>ln(B02) / ln(B03)</td><td>0.16</td><td>3.68 m</td><td>3.02 m</td></tr>
+            <tr><th scope="row">Random forest</th><td>B02, B03, B04</td><td>0.40</td><td>3.10 m</td><td>2.34 m</td></tr>
+            <tr><th scope="row">Neural network (MLP)</th><td>B02, B03, B04</td><td>0.46</td><td>2.94 m</td><td>2.20 m</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <figure class="fig">
+        <img src="images/bathymetry_comparison.png" alt="Predicted against reference depth for the Stumpf ratio, random forest and neural network on held-out blocks" loading="lazy">
+        <figcaption>Predicted against EMODnet depth on held-out blocks (20,000 sampled pixels). The red line is a perfect prediction.</figcaption>
+      </figure>
+
+      <h3 class="subhead">Where the errors are</h3>
+      <p>
+        Both models predict too deep in shallow water and too shallow beyond 12 m. Errors are
+        smallest between about 6 and 12 m.
+      </p>
+    </section>
+    <section class="wrap charts" id="bias" aria-label="Mean error by depth"></section>
+    <div class="wrap">
+      <details class="tableview">
+        <summary>Show the numbers as a table</summary>
+        <div class="tableview__scroll">
+          <table>
+            <thead><tr><th scope="col">Depth</th><th scope="col">Test pixels</th><th scope="col">RF bias</th><th scope="col">RF MAE</th><th scope="col">MLP bias</th><th scope="col">MLP MAE</th><th scope="col">MLP median abs. error</th></tr></thead>
+            <tbody id="bias-table"></tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+
+    <section class="wrap prose" aria-labelledby="mean-h">
+      <h2 id="mean-h">What the errors mean</h2>
+      <p>
+        Beyond about 12 m the predictions level off at 11–12 m because the floor is barely visible.
+        Together with the usual pull of a noisy predictor towards the mean, this gives the change of
+        sign in the error.
+      </p>
+      <p>
+        In the first 3 m the mean error (+3.3 m) is about twice the median (1.7 m). A minority of
+        shallow pixels are predicted far too deep, which points to dark floor such as seagrass or
+        rock, which looks like deep water in a model that only sees colour (Stumpf et al., 2003).
+      </p>
+      <p>
+        EMODnet itself limits the scores. One EMODnet cell covers about 130 Sentinel-2 pixels with a
+        single depth, so real relief inside a cell counts as error. The DTM 2024 also includes
+        satellite-derived depths in some areas. The numbers measure agreement with another product,
+        not with surveyed depth.
+      </p>
+    </section>
+
+    <section class="wrap prose" aria-labelledby="limits-h">
+      <h2 id="limits-h">Limits and next steps</h2>
+      <p>
+        One site, one split and one random seed, so there are no confidence intervals and no test on
+        another coast. The models use single-scene pixels; a per-pixel median over all scenes, as in
+        Sagawa et al. (2019), should remove much of the wave and glint noise.
+      </p>
+      <p>
+        Next steps: spatial cross-validation with several folds, median composites and log-ratio
+        features, and a check against ICESat-2 laser depths (ATL24) instead of a gridded product.
+      </p>
+    </section>
+
+    <section class="wrap prose" aria-labelledby="refs-h">
+      <h2 id="refs-h">References</h2>
+      <ul class="refs">
+        <li>Breiman, L. (2001). Random forests. <i>Machine Learning</i>, 45, 5–32. <a href="https://doi.org/10.1023/A:1010933404324">doi:10.1023/A:1010933404324</a></li>
+        <li>EMODnet Bathymetry Consortium (2024). <i>EMODnet Digital Bathymetry (DTM 2024)</i>. <a href="https://doi.org/10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1">doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1</a></li>
+        <li>ESA (2022). Sentinel-2 processing baseline 04.00: radiometric offset of −1000 added to Level-1C and Level-2A products.</li>
+        <li>Hedley, J. D., Harborne, A. R., &amp; Mumby, P. J. (2005). Simple and robust removal of sun glint for mapping shallow-water benthos. <i>International Journal of Remote Sensing</i>, 26(10), 2107–2112. <a href="https://doi.org/10.1080/01431160500034086">doi:10.1080/01431160500034086</a></li>
+        <li>Lyzenga, D. R. (1978). Passive remote sensing techniques for mapping water depth and bottom features. <i>Applied Optics</i>, 17(3), 379–383. <a href="https://doi.org/10.1364/AO.17.000379">doi:10.1364/AO.17.000379</a></li>
+        <li>Pedregosa, F., et al. (2011). Scikit-learn: Machine learning in Python. <i>Journal of Machine Learning Research</i>, 12, 2825–2830.</li>
+        <li>Roberts, D. R., et al. (2017). Cross-validation strategies for data with temporal, spatial, hierarchical, or phylogenetic structure. <i>Ecography</i>, 40(8), 913–929. <a href="https://doi.org/10.1111/ecog.02881">doi:10.1111/ecog.02881</a></li>
+        <li>Sagawa, T., Yamashita, Y., Okumura, T., &amp; Yamanokuchi, T. (2019). Satellite derived bathymetry using machine learning and multi-temporal satellite images. <i>Remote Sensing</i>, 11(10), 1155. <a href="https://doi.org/10.3390/rs11101155">doi:10.3390/rs11101155</a></li>
+        <li>Stumpf, R. P., Holderied, K., &amp; Sinclair, M. (2003). Determination of water depth with high-resolution satellite imagery over variable bottom types. <i>Limnology and Oceanography</i>, 48(1, part 2), 547–556. <a href="https://doi.org/10.4319/lo.2003.48.1_part_2.0547">doi:10.4319/lo.2003.48.1_part_2.0547</a></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <p>Contains modified Copernicus Sentinel data 2024–2025. Reference depth: EMODnet Digital Bathymetry (DTM 2024). Basemap © Esri, Maxar, Earthstar Geographics.</p>
+    </div>
+  </footer>
+
+  <div class="tooltip" id="tooltip" role="status" hidden></div>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
