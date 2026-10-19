@@ -1,4 +1,4 @@
-# Sentinel-2 Water Quality and Bathymetry Estimation
+# Sentinel-2 Bathymetry Estimation
 
 A satellite-based pipeline for estimating **coastal water depth** and **water quality parameters** from Sentinel-2 multispectral imagery over the south coast of Crete, Greece.
 
