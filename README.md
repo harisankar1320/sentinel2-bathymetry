@@ -2,6 +2,8 @@
 
 A satellite-based pipeline for estimating **coastal water depth** and **water quality parameters** from Sentinel-2 multispectral imagery over the south coast of Crete, Greece.
 
+https://harisankar1320.github.io/sentinel2-water-quality-bathymetry/
+
 The project compares traditional spectral ratio methods against machine learning approaches (Random Forest, MLP Neural Network) for satellite-derived bathymetry (SDB), and computes water quality indices (chlorophyll-a, turbidity, NDWI) across a two-year multi-temporal dataset.
 
 ---
